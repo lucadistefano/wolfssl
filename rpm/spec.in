@@ -1,7 +1,7 @@
 Summary: Embedded SSL Library
 Name: @PACKAGE@
 Version: @VERSION@
-Release: 1
+Release: @SNIFFER_PATCH@
 License: GPLv2
 Group: System Environment/Libraries
 BuildRequires: gcc
@@ -16,6 +16,9 @@ BuildRequires: tar
 URL: http://www.wolfssl.com/
 
 Packager: Brian Aker <brian@tangent.org>
+Provides: @PACKAGE@ = %{version}
+#Obsoletes: @PACKAGE@-debug <= %{version}
+#Conflicts: @PACKAGE@-debug
 
 Source: http://wolfssl.com/%{name}-%{version}.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
@@ -36,7 +39,7 @@ you will need to install %{name}-devel.
 %prep
 %setup -q
 
-%configure
+%configure @CYASSL_BUILD_OPTS@
 
 
 %build
@@ -71,6 +74,7 @@ mkdir -p $RPM_BUILD_ROOT/
 %{_docdir}/wolfssl/example/sctp-server-dtls.c
 %{_docdir}/wolfssl/example/tls_bench.c
 %{_docdir}/wolfssl/README.txt
+%{_libdir}/libwolfssl.a
 %{_libdir}/libwolfssl.la
 %{_libdir}/libwolfssl.so
 %{_libdir}/libwolfssl.so.16

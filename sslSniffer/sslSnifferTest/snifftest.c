@@ -55,7 +55,15 @@ int main(void)
 #include <string.h>        /* strcmp */
 #include <signal.h>        /* signal */
 
-#include <cyassl/sniffer.h>
+#include <netinet/in.h>
+#ifdef linux
+#include <netinet/ether.h>
+#else
+#include <netinet/if_ether.h>
+#define ETH_P_8021Q	ETHERTYPE_VLAN
+#endif
+
+#include <wolfssl/sniffer.h>
 
 
 #ifndef _WIN32
@@ -69,12 +77,15 @@ typedef unsigned char byte;
 enum {
     ETHER_IF_FRAME_LEN = 14,   /* ethernet interface frame length */
     NULL_IF_FRAME_LEN =   4,   /* no link interface frame length  */
+	LINUX_SLL_FRAME_LEN = 16,
 };
 
 
 pcap_t* pcap = NULL;
 pcap_if_t* alldevs = NULL;
 
+int pcap_frame = ETHER_IF_FRAME_LEN;
+int datalink;
 
 static void FreeAll(void)
 {
@@ -121,6 +132,65 @@ static char* iptos(unsigned int addr)
 	return output;
 }
 
+static int pcap_check_datalink(pcap_t *handle) {
+	datalink = pcap_datalink(handle);
+
+	switch (datalink) {
+	case DLT_EN10MB:
+		pcap_frame = ETHER_IF_FRAME_LEN;
+		break;
+	case DLT_NULL:
+	case DLT_LOOP:
+		pcap_frame = NULL_IF_FRAME_LEN;
+		break;
+	case DLT_LINUX_SLL:
+		// http://www.tcpdump.org/linktypes/LINKTYPE_LINUX_SLL.html
+		pcap_frame = LINUX_SLL_FRAME_LEN;
+		break;
+	default:
+		return 0;
+	}
+
+	return 1;
+}
+
+
+static int get_frame_len(const unsigned char* packet, int *vlan, int *hproto) {
+	int frame_len = pcap_frame;
+	int proto = 0;
+
+	switch (datalink) {
+	case DLT_EN10MB:
+#ifdef linux
+		proto = ntohs(((struct ethhdr *) packet)->h_proto);
+#else
+		proto = ntohs(((struct ether_header * ) packet)->ether_type);
+#endif
+		break;
+	case DLT_LINUX_SLL:
+		proto = (u_int16_t) *(packet + 14);
+		break;
+	}
+
+	if (proto == ETH_P_8021Q) {
+		if (vlan) {
+			*vlan = ntohs(*(u_int16_t*) &packet[frame_len]);
+		}
+
+		proto = ntohs(*(u_int16_t*) &packet[frame_len + 2]); //0x0800 IP
+
+		// if vlan tag then start of ip payoad is 4 bytes shifted
+		frame_len += 4;
+	} else {
+		if (vlan) {
+			*vlan = 0;
+		}
+	}
+	if (hproto)
+		*hproto = proto;
+
+	return frame_len;
+}
 
 int main(int argc, char** argv)
 {
@@ -130,7 +200,7 @@ int main(int argc, char** argv)
 	int		     port;
     int          saveFile = 0;
 	int		     i = 0;
-    int          frame = ETHER_IF_FRAME_LEN;
+
     char         err[PCAP_ERRBUF_SIZE];
 	char         filter[32];
 	const char  *server = NULL;
@@ -288,8 +358,7 @@ int main(int argc, char** argv)
     if (ret != 0)
         err_sys(err);
 
-    if (pcap_datalink(pcap) == DLT_NULL)
-        frame = NULL_IF_FRAME_LEN;
+    pcap_check_datalink(pcap);
 
     while (1) {
         static int packetNumber = 0;
@@ -300,6 +369,8 @@ int main(int argc, char** argv)
 
             byte* data = NULL;
 
+            int vlan;
+            int frame = get_frame_len(packet, &vlan, NULL);
             if (header.caplen > 40)  { /* min ip(20) + min tcp(20) */
 				packet        += frame;
 				header.caplen -= frame;
@@ -307,7 +378,8 @@ int main(int argc, char** argv)
             else
                 continue;
 
-            ret = ssl_DecodePacket(packet, header.caplen, &data, err);
+    	    int err_code = 0;
+    	    ret = ssl_DecodePacketExtVlan(packet, header.caplen, vlan, &data, err, &err_code);
             if (ret < 0) {
                 printf("ssl_Decode ret = %d, %s\n", ret, err);
                 hadBadPacket = 1;

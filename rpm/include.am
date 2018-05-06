@@ -1,37 +1,115 @@
 # vim:ft=automake
+#
+#
+#
 
-rpm-build: rpm/spec dist
-	@rm -f *.rpm
-	@rm -f ~/rpmbuild/RPMS/x86_64/$(PACKAGE)-$(VERSION)*.rpm
-	@rm -f ~/rpmbuild/SRPMS/$(PACKAGE)-$(VERSION)*.rpm
-	@mkdir -p ~/rpmbuild/BUILD/
-	@mkdir -p ~/rpmbuild/RPMS/i386/
-	@mkdir -p ~/rpmbuild/RPMS/i686/
-	@mkdir -p ~/rpmbuild/RPMS/noarch/
-	@mkdir -p ~/rpmbuild/RPMS/x86_64/
-	@mkdir -p ~/rpmbuild/SOURCES/
-	@mkdir -p ~/rpmbuild/SPECS/
-	@mkdir -p ~/rpmbuild/SRPMS/
-	@cp $(PACKAGE)-$(VERSION).tar.gz ~/rpmbuild/SOURCES/
-	@rpmbuild -ba --clean rpm/spec
-	@cp ~/rpmbuild/RPMS/x86_64/$(PACKAGE)-$(VERSION)*.rpm .
-	@cp ~/rpmbuild/RPMS/x86_64/$(PACKAGE)-devel-$(VERSION)*.rpm .
-	@cp ~/rpmbuild/RPMS/x86_64/$(PACKAGE)-debuginfo-$(VERSION)*.rpm .
-	@cp ~/rpmbuild/SRPMS/$(PACKAGE)-$(VERSION)*.rpm .
+SPEC=rpm/spec
 
+ARCH=`uname -m`
+
+REPO_HOST=root@rhupd.wp.lan
+REPO_BASE=/data/mrepo/centos6-x86_64
+REPO_BIN_PATH=$(REPO_BASE)/nbox/
+REPO_BIN_BETA_PATH=$(REPO_BASE)/nbox-beta/
+REPO_DEV_PATH=$(REPO_BASE)/nbox/
+REPO_DEV_BETA_PATH=$(REPO_BASE)/nbox-beta/
+REPO_SRC_PATH=$(REPO_BASE)/SRPMS/
+MREPO=$(REPO_BASE)/mrepo.conf
+
+REPOS="nbox,nbox-devel,nbox-beta,nbox-devel-beta"
+
+LOCAL_REPO=~/rpmbuild
+
+##### 
+
+REL=`/bin/grep "^Release:" $(SPEC) | /usr/bin/awk '{print($$2)}'`
+
+DIST_FILE=$(PACKAGE)-$(VERSION).tar.gz
+
+RPM_RELEASE=$(REL)
+RPM_VERSION=$(VERSION)
+RPM_PACKAGE=$(PACKAGE)
+RPM  = $(LOCAL_REPO)/RPMS/$(ARCH)/$(RPM_PACKAGE)-$(RPM_VERSION)-$(RPM_RELEASE).$(ARCH).rpm
+RPMDBG = $(LOCAL_REPO)/RPMS/$(ARCH)/$(RPM_PACKAGE)-debuginfo-$(RPM_VERSION)-$(RPM_RELEASE).$(ARCH).rpm
+RPMDEV = $(LOCAL_REPO)/RPMS/$(ARCH)/$(RPM_PACKAGE)-devel-$(RPM_VERSION)-$(RPM_RELEASE).$(ARCH).rpm
+#RPMTRC = $(LOCAL_REPO)/RPMS/$(ARCH)/$(RPM_PACKAGE)-trace-$(RPM_VERSION)-$(RPM_RELEASE).$(ARCH).rpm
+SRPM = $(LOCAL_REPO)/SRPMS/$(RPM_PACKAGE)-$(RPM_VERSION)-$(RPM_RELEASE).src.rpm
+STGZ = $(LOCAL_REPO)/SOURCES/$(DIST_FILE)
+
+#####
+	
+rpm-clean:
+	@rm -f $(STGZ)
+	@rm -f $(RPM)
+	@rm -f $(SRPM)
+
+	-@rm -f $(RPMDEV)
+	-@rm -f $(RPMDBG)
+	-@rm -f $(RPMTRC)
+	
+#$(STGZ): dist
+	
+#$(RPM): $(SPEC) $(STGZ)
+rpm-build: $(SPEC) dist
+	@mkdir -p $(LOCAL_REPO)/BUILD/
+	@mkdir -p $(LOCAL_REPO)/RPMS/$(ARCH)/
+	@mkdir -p $(LOCAL_REPO)/SOURCES/
+	@mkdir -p $(LOCAL_REPO)/SPECS/
+	
+	@cp $(DIST_FILE) $(STGZ)
+	
+	@rpmbuild -ba --clean $(SPEC)
+#	@rpmbuild -ba --clean rpm/spec.debug
+
+#rpm-sign: $(RPM)
 rpm-sign: rpm-build
-	@rpm --addsign *.rpm
-	@rpm --checksig *.rpm
+	@rpm --addsign $(RPM)
+	@rpm --checksig $(RPM)
 
-clean-rpm:
-	@rm -f *.tar.gz
-	@rm -f *.src.rpm
-	@rm -f *.rpm
+#rpm: $(SPEC) rpm-clean $(RPM)
+rpm: $(SPEC) rpm-clean rpm-build
 
-rpm: rpm-build
+upload-repo:
+	@echo "PACKAGE   :  $(PACKAGE)"
+	@echo "VERSION   :  $(VERSION) -> $(RPM_VERSION)"
+	@echo "RELEASE   :  $(RPM_RELEASE)"
+	@echo "ARCH      :  $(ARCH) $(SPEC_ARCH)"
+	@echo
+	@echo "RPM  REPO :  $(REPO_HOST):$(REPO_BIN_PATH)"
+	@echo "DEV  REPO :  $(REPO_HOST):$(REPO_DEV_PATH)"
+	@echo "SRPM REPO :  $(REPO_HOST):$(REPO_SRC_PATH)"
+	@echo
+	@echo "RPM       :  $(RPM)"
+	@echo "RPMDBG    :  $(RPMDBG)"
+	@echo "RPMDEV    :  $(RPMDEV)"
+#	@echo "RPMDEBUG  :  $(RPMTRC)"
+	@echo "SRPM      :  $(SRPM)"
+	@echo
+	@echo "Uploading ..."
+	@scp $(RPM) "$(REPO_HOST):$(REPO_BIN_PATH)"
+	@scp $(RPMDEV) "$(REPO_HOST):$(REPO_DEV_PATH)"
+	-@scp $(RPMDBG) "$(REPO_HOST):$(REPO_BIN_PATH)"
+#	@scp $(RPMTRC) "$(REPO_HOST):$(REPO_BIN_PATH)"
+	@scp $(SRPM) "$(REPO_HOST):$(REPO_SRC_PATH)"
+	@echo ".... done"
 
-release: rpm-sign
+release: upload-repo
+	@echo "Released $(PACKAGE)"
+
+set-repo-beta:
+	$(eval REPO_BIN_PATH := $(REPO_BIN_BETA_PATH))
+	$(eval REPO_DEV_PATH := $(REPO_DEV_BETA_PATH))
+	
+release-beta: set-repo-beta upload-repo
+	@echo "Released Beta $(PACKAGE)"
+
+rebuild-all-repo:
+	@echo "Rebuilding $(MREPO) @ $(REPO_HOST)"
+	@ssh $(REPO_HOST) mrepo -gvvv -c $(MREPO)
+	
+rebuild-repo:
+	@echo "Rebuilding $(MREPO) @ $(REPO_HOST) repos $(REPOS)"
+	@ssh $(REPO_HOST) mrepo -c $(MREPO) -gvvvv -r $(REPOS)
 
 auto-rpmbuild:
-	@auto-br-rpmbuild -ba rpm/spec
-
+	@auto-br-rpmbuild -ba $(SPEC)

@@ -86,6 +86,35 @@ WOLFSSL_API void ssl_InitSniffer(void);
 WOLFSSL_API void ssl_FreeSniffer(void);
 
 
+
+#define WOLFSSL_FLAG_IGNORE_ACKS		0x0001
+#define WOLFSSL_FLAG_IGNORE_UNKNOWN_HS	0x0002
+
+WOLFSSL_API
+SSL_SNIFFER_API void ssl_GetErrorMessage(int idx, char *error);
+
+WOLFSSL_API
+SSL_SNIFFER_API int ssl_DecodePacketExtVlan(const unsigned char* packet, int length,
+										unsigned short vlan,
+										unsigned char** data, char* error, int* err);
+WOLFSSL_API
+SSL_SNIFFER_API int ssl_IsServerRegistered(unsigned long addr, unsigned short port);
+
+WOLFSSL_API
+SSL_SNIFFER_API int ssl_IsNamedServerRegistered(char *sni, unsigned long addr, unsigned short port);
+
+WOLFSSL_API
+SSL_SNIFFER_API void ssl_SetSessionTimeout(int session_timeout_sec);
+
+WOLFSSL_API
+SSL_SNIFFER_API void ssl_GetSnifferSessionStats(unsigned long *active, unsigned long *expired, unsigned long *total, unsigned long *peak, unsigned long *allocd, unsigned long *freed);
+
+WOLFSSL_API
+SSL_SNIFFER_API void ssl_ReleaseSession(const unsigned char* packet, int length, unsigned short vlan);
+
+WOLFSSL_API
+SSL_SNIFFER_API void ssl_SetFlags(unsigned int flags);
+
 /* ssl_SetPrivateKey typeKs */
 enum {
     FILETYPE_PEM = 1,

@@ -41,7 +41,6 @@
 #else
     #define SNPRINTF snprintf
 #endif
-
 #include <wolfssl/openssl/ssl.h>
 #include <wolfssl/internal.h>
 #include <wolfssl/error-ssl.h>
@@ -379,8 +378,17 @@ typedef struct SnifferSession {
 #ifdef HAVE_EXTENDED_MASTER
     HsHashes*       hash;
 #endif
+    
+    word16		   vlan;			/* network vlan tag */
+    int            lastError;		/*last error code*/
 } SnifferSession;
 
+static int ssl_sniffer_session_timeout = WOLFSSL_SNIFFER_TIMEOUT;
+static unsigned long num_session_in_cache = 0;
+static unsigned long num_session_expired = 0;
+static unsigned long max_sessions = 0;
+static byte ignore_unknown_hs_rl = 0;
+static byte check_ack = 0;
 
 /* Sniffer Server List and mutex */
 static SnifferServer* ServerList = 0;
@@ -410,6 +418,9 @@ static void UpdateMissedDataSessions(void)
 /* Initialize overall Sniffer */
 void ssl_InitSniffer(void)
 {
+#ifdef DEBUG_WOLFSSL
+	printf("Sniffer PATCH: $Revision: 917 $\n");
+#endif
     wolfSSL_Init();
     wc_InitMutex(&ServerListMutex);
     wc_InitMutex(&SessionMutex);
@@ -721,6 +732,7 @@ typedef struct IpInfo {
     int    total;         /* total length of fragment */
     word32 src;           /* network order source address */
     word32 dst;           /* network order destination address */
+    word16 vlan;		  /* network vlan tag */
 } IpInfo;
 
 
@@ -805,7 +817,32 @@ typedef struct TcpHdr {
 
 
 
+#if defined(DISABLE_TRACE) && !defined(DEBUG_WOLFSSL)
 
+#define Trace(idx)
+#define TraceHeader()
+#define TraceSetServer(srv, port, keyFile)
+#ifdef HAVE_SNI
+#define TraceSetNamedServer(name, srv, port, keyFile)
+#endif
+#define TracePacket()
+#define IpToS(addr, str)
+#define TraceIP(iphdr)
+#define TraceTcp(tcphdr)
+#define TraceSequence(seq, len)
+#define TraceAck(ack, expected)
+#define TraceRelativeSequence(expected, got)
+#define TraceServerSyn(seq)
+#define TraceClientSyn(seq)
+#define TraceClientFin(finSeq, relSeq)
+#define TraceServerFin(finSeq, relSeq)
+#define TraceGotData(bytes)
+#define TraceAddedData(newBytes, existingBytes)
+#define TraceStaleSession()
+#define TraceFindingStale()
+#define TraceRemovedSession()
+
+#else
 
 /* Use platform specific GetError to write to tracfile if tracing */
 static void Trace(int idx)
@@ -1014,14 +1051,26 @@ static void TraceRemovedSession(void)
     }
 }
 
+#endif /* DISABLE_TRACE */
 
 /* Set user error string */
-static void SetError(int idx, char* error, SnifferSession* session, int fatal)
+static int SetError(int idx, char* error, SnifferSession* session, int fatal)
 {
-    GetError(idx, error);
-    Trace(idx);
+	if (TraceOn) {
+		GetError(idx, error);
+		Trace(idx);
+	}
+	
     if (session && fatal == FATAL_ERROR_STATE)
         session->flags.fatalError = 1;
+		
+    if (session && !session->lastError){ // trace first error
+    	session->lastError = idx;
+    	if (fatal == FATAL_ERROR_STATE)
+    		session->lastError = -session->lastError; // tag it as fatal
+    }
+
+    return idx;
 }
 
 
@@ -1101,6 +1150,7 @@ static word32 SessionHash(IpInfo* ipInfo, TcpInfo* tcpInfo)
     word32 hash = ipInfo->src * ipInfo->dst;
     hash *= tcpInfo->srcPort * tcpInfo->dstPort;
 
+//    hash *= ipInfo->vlan + 1; // vlan id can be 0
     return hash % HASH_SIZE;
 }
 
@@ -1120,11 +1170,11 @@ static SnifferSession* GetSnifferSession(IpInfo* ipInfo, TcpInfo* tcpInfo)
     while (session) {
         if (session->server == ipInfo->src && session->client == ipInfo->dst &&
                     session->srvPort == tcpInfo->srcPort &&
-                    session->cliPort == tcpInfo->dstPort)
+                    session->cliPort == tcpInfo->dstPort && session->vlan == ipInfo->vlan)
             break;
         if (session->client == ipInfo->src && session->server == ipInfo->dst &&
                     session->cliPort == tcpInfo->srcPort &&
-                    session->srvPort == tcpInfo->dstPort)
+                    session->srvPort == tcpInfo->dstPort && session->vlan == ipInfo->vlan)
             break;
 
         session = session->next;
@@ -1384,7 +1434,7 @@ int ssl_SetPrivateKey(const char* address, int port, const char* keyFile,
 
 /* Check IP Header for IPV4, TCP, and a registered server address */
 /* returns 0 on success, -1 on error */
-static int CheckIpHdr(IpHdr* iphdr, IpInfo* info, int length, char* error)
+static int CheckIpHdr(IpHdr* iphdr, IpInfo* info, int length, char* error, int *err)
 {
     int    version = IP_V(iphdr);
 
@@ -1392,17 +1442,17 @@ static int CheckIpHdr(IpHdr* iphdr, IpInfo* info, int length, char* error)
     Trace(IP_CHECK_STR);
 
     if (version != IPV4) {
-        SetError(BAD_IPVER_STR, error, NULL, 0);
+    	*err = SetError(BAD_IPVER_STR, error, NULL, 0); 
         return -1;
     }
 
     if (iphdr->protocol != TCP_PROTOCOL) {
-        SetError(BAD_PROTO_STR, error, NULL, 0);
+    	*err = SetError(BAD_PROTO_STR, error, NULL, 0);
         return -1;
     }
 
     if (!IsServerRegistered(iphdr->src) && !IsServerRegistered(iphdr->dst)) {
-        SetError(SERVER_NOT_REG_STR, error, NULL, 0);
+    	*err = SetError(SERVER_NOT_REG_STR, error, NULL, 0);
         return -1;
     }
 
@@ -1420,7 +1470,7 @@ static int CheckIpHdr(IpHdr* iphdr, IpInfo* info, int length, char* error)
 
 /* Check TCP Header for a registered port */
 /* returns 0 on success, -1 on error */
-static int CheckTcpHdr(TcpHdr* tcphdr, TcpInfo* info, char* error)
+static int CheckTcpHdr(TcpHdr* tcphdr, TcpInfo* info, char* error, int *err)
 {
     TraceTcp(tcphdr);
     Trace(TCP_CHECK_STR);
@@ -1435,8 +1485,10 @@ static int CheckTcpHdr(TcpHdr* tcphdr, TcpInfo* info, char* error)
     if (info->ack)
         info->ackNumber = ntohl(tcphdr->ack);
 
+    	// is needed the check of the port ?
+    	// IsPortRegistered() iterates on servers, the same is done by searching certs
     if (!IsPortRegistered(info->srcPort) && !IsPortRegistered(info->dstPort)) {
-        SetError(SERVER_PORT_NOT_REG_STR, error, NULL, 0);
+    	*err = SetError(SERVER_PORT_NOT_REG_STR, error, NULL, 0);
         return -1;
     }
 
@@ -2155,6 +2207,10 @@ static int DoHandShake(const byte* input, int* sslBytes,
             Trace(GOT_CERT_STATUS_STR);
             break;
         default:
+        	if(ignore_unknown_hs_rl){
+				Trace(GOT_UNKNOWN_HANDSHAKE_STR);
+				break;
+        	}
             SetError(GOT_UNKNOWN_HANDSHAKE_STR, error, session, 0);
             return -1;
     }
@@ -2319,6 +2375,9 @@ static void RemoveSession(SnifferSession* session, IpInfo* ipInfo,
                 SessionTable[row] = current->next;
             FreeSnifferSession(session);
             TraceRemovedSession();
+
+            num_session_in_cache--;
+			
             break;
         }
         previous = current;
@@ -2340,9 +2399,11 @@ static void RemoveStaleSessions(void)
         session = SessionTable[i];
         while (session) {
             SnifferSession* next = session->next;
-            if (time(NULL) >= session->lastUsed + WOLFSSL_SNIFFER_TIMEOUT) {
+            if (ssl_sniffer_session_timeout && time(NULL) >= session->lastUsed + ssl_sniffer_session_timeout) {
                 TraceStaleSession();
                 RemoveSession(session, NULL, NULL, i);
+
+				num_session_expired++;
             }
             session = next;
         }
@@ -2352,7 +2413,7 @@ static void RemoveStaleSessions(void)
 
 /* Create a new Sniffer Session */
 static SnifferSession* CreateSession(IpInfo* ipInfo, TcpInfo* tcpInfo,
-                                     char* error)
+                                     char* error, int *err)
 {
     SnifferSession* session = 0;
     int row;
@@ -2361,7 +2422,7 @@ static SnifferSession* CreateSession(IpInfo* ipInfo, TcpInfo* tcpInfo,
     /* create a new one */
     session = (SnifferSession*)malloc(sizeof(SnifferSession));
     if (session == NULL) {
-        SetError(MEMORY_STR, error, NULL, 0);
+    	*err = SetError(MEMORY_STR, error, NULL, 0);
         return 0;
     }
     InitSession(session);
@@ -2387,11 +2448,12 @@ static SnifferSession* CreateSession(IpInfo* ipInfo, TcpInfo* tcpInfo,
     session->cliPort = (word16)tcpInfo->srcPort;
     session->cliSeqStart = tcpInfo->sequence;
     session->cliExpected = 1;  /* relative */
+    session->vlan	 = ipInfo->vlan;
     session->lastUsed= time(NULL);
 
     session->context = GetSnifferServer(ipInfo, tcpInfo);
     if (session->context == NULL) {
-        SetError(SERVER_NOT_REG_STR, error, NULL, 0);
+    	*err = SetError(SERVER_NOT_REG_STR, error, NULL, 0);
         free(session);
         return 0;
     }
@@ -2423,6 +2485,9 @@ static SnifferSession* CreateSession(IpInfo* ipInfo, TcpInfo* tcpInfo,
     SessionTable[row] = session;
 
     SessionCount++;
+    num_session_in_cache++;
+    if(num_session_in_cache > max_sessions)
+    	max_sessions = num_session_in_cache;
 
     if ( (SessionCount % HASH_SIZE) == 0) {
         TraceFindingStale();
@@ -2543,31 +2608,31 @@ int TcpChecksum(IpInfo* ipInfo, TcpInfo* tcpInfo, int dataLen,
 /* Check IP and TCP headers, set payload */
 /* returns 0 on success, -1 on error */
 static int CheckHeaders(IpInfo* ipInfo, TcpInfo* tcpInfo, const byte* packet,
-                  int length, const byte** sslFrame, int* sslBytes, char* error)
+                  int length, const byte** sslFrame, int* sslBytes, char* error, int *err)
 {
     TraceHeader();
     TracePacket();
 
     /* ip header */
     if (length < IP_HDR_SZ) {
-        SetError(PACKET_HDR_SHORT_STR, error, NULL, 0);
+    	*err = SetError(PACKET_HDR_SHORT_STR, error, NULL, 0);
         return -1;
     }
-    if (CheckIpHdr((IpHdr*)packet, ipInfo, length, error) != 0)
+    if (CheckIpHdr((IpHdr*)packet, ipInfo, length, error, err) != 0)
         return -1;
 
     /* tcp header */
     if (length < (ipInfo->length + TCP_HDR_SZ)) {
-        SetError(PACKET_HDR_SHORT_STR, error, NULL, 0);
+    	*err = SetError(PACKET_HDR_SHORT_STR, error, NULL, 0);
         return -1;
     }
-    if (CheckTcpHdr((TcpHdr*)(packet + ipInfo->length), tcpInfo, error) != 0)
+    if (CheckTcpHdr((TcpHdr*)(packet + ipInfo->length), tcpInfo, error, err) != 0)
         return -1;
 
     /* setup */
     *sslFrame = packet + ipInfo->length + tcpInfo->length;
     if (*sslFrame > packet + length) {
-        SetError(PACKET_HDR_SHORT_STR, error, NULL, 0);
+    	*err = SetError(PACKET_HDR_SHORT_STR, error, NULL, 0);
         return -1;
     }
     *sslBytes = (int)(packet + length - *sslFrame);
@@ -2579,19 +2644,20 @@ static int CheckHeaders(IpInfo* ipInfo, TcpInfo* tcpInfo, const byte* packet,
 /* Create or Find existing session */
 /* returns 0 on success (continue), -1 on error, 1 on success (end) */
 static int CheckSession(IpInfo* ipInfo, TcpInfo* tcpInfo, int sslBytes,
-                        SnifferSession** session, char* error)
+                        SnifferSession** session, char* error, int *err)
 {
     /* create a new SnifferSession on client SYN */
     if (tcpInfo->syn && !tcpInfo->ack) {
         TraceClientSyn(tcpInfo->sequence);
-        *session = CreateSession(ipInfo, tcpInfo, error);
+        *session = CreateSession(ipInfo, tcpInfo, error, err);
         if (*session == NULL) {
             *session = GetSnifferSession(ipInfo, tcpInfo);
             /* already had existing, so OK */
             if (*session)
                 return 1;
 
-            SetError(MEMORY_STR, error, NULL, 0);
+//			error here is already setted (server not registered) don't overwrite it!
+//			*err = SetError(MEMORY_STR, error, NULL, 0);
             return -1;
         }
         return 1;
@@ -2607,7 +2673,7 @@ static int CheckSession(IpInfo* ipInfo, TcpInfo* tcpInfo, int sslBytes,
             if (sslBytes == 0 && tcpInfo->ack)
                 return 1;
 
-            SetError(BAD_SESSION_STR, error, NULL, 0);
+			*err = SetError(BAD_SESSION_STR, error, NULL, 0);
             return -1;
         }
     }
@@ -3038,7 +3104,7 @@ static int CheckSequence(IpInfo* ipInfo, TcpInfo* tcpInfo,
     }
 
     TraceSequence(tcpInfo->sequence, *sslBytes);
-    if (CheckAck(tcpInfo, session) < 0) {
+    if (check_ack && CheckAck(tcpInfo, session) < 0) {
         if (!RecoveryEnabled) {
             UpdateMissedDataSessions();
             SetError(ACK_MISSED_STR, error, session, FATAL_ERROR_STATE);
@@ -3461,10 +3527,14 @@ static int RemoveFatalSession(IpInfo* ipInfo, TcpInfo* tcpInfo,
     return 0;
 }
 
+static void update_error(SnifferSession* session, int *error){
+	if (session && !*error)
+		*error = session->lastError;
+}
 
 /* Passes in an IP/TCP packet for decoding (ethernet/localhost frame) removed */
 /* returns Number of bytes on success, 0 for no data yet, and -1 on error */
-int ssl_DecodePacket(const byte* packet, int length, byte** data, char* error)
+int ssl_DecodePacketExtVlan(const byte* packet, int length, unsigned short vlan, byte** data, char* error, int* err)
 {
     TcpInfo           tcpInfo;
     IpInfo            ipInfo;
@@ -3473,33 +3543,149 @@ int ssl_DecodePacket(const byte* packet, int length, byte** data, char* error)
     int               sslBytes;                /* ssl bytes unconsumed */
     int               ret;
     SnifferSession*   session = 0;
+    ipInfo.vlan = vlan;
 
     if (CheckHeaders(&ipInfo, &tcpInfo, packet, length, &sslFrame, &sslBytes,
-                     error) != 0)
+                     error, err) != 0)
         return -1;
 
-    ret = CheckSession(&ipInfo, &tcpInfo, sslBytes, &session, error);
+    ret = CheckSession(&ipInfo, &tcpInfo, sslBytes, &session, error, err);
+    if(session) session->lastError = 0;
+    update_error(session, err);
     if (RemoveFatalSession(&ipInfo, &tcpInfo, session, error)) return -1;
     else if (ret == -1) return -1;
     else if (ret ==  1) return  0;   /* done for now */
 
     ret = CheckSequence(&ipInfo, &tcpInfo, session, &sslBytes, &sslFrame,error);
+    update_error(session, err);
     if (RemoveFatalSession(&ipInfo, &tcpInfo, session, error)) return -1;
     else if (ret == -1) return -1;
     else if (ret ==  1) return  0;   /* done for now */
 
     ret = CheckPreRecord(&ipInfo, &tcpInfo, &sslFrame, &session, &sslBytes,
                          &end, error);
+    update_error(session, err);
     if (RemoveFatalSession(&ipInfo, &tcpInfo, session, error)) return -1;
     else if (ret == -1) return -1;
     else if (ret ==  1) return  0;   /* done for now */
 
     ret = ProcessMessage(sslFrame, session, sslBytes, data, end, error);
+    update_error(session, err);
     if (RemoveFatalSession(&ipInfo, &tcpInfo, session, error)) return -1;
     CheckFinCapture(&ipInfo, &tcpInfo, session);
     return ret;
 }
+/////  EXT
 
+int ssl_DecodePacket(const byte* packet, int length, byte** data, char* error)
+{
+	int err = 0;
+	return ssl_DecodePacketExtVlan(packet, length, 0, data, error, &err);
+}
+
+void ssl_SetSessionTimeout(int session_timeout_sec)
+{
+	ssl_sniffer_session_timeout = session_timeout_sec;
+}
+
+void ssl_SetFlags(unsigned int flags)
+{
+	check_ack = (flags & WOLFSSL_FLAG_IGNORE_ACKS)?0:1;
+	ignore_unknown_hs_rl = (flags & WOLFSSL_FLAG_IGNORE_UNKNOWN_HS)?1:0;
+}
+
+void ssl_GetErrorMessage(int idx, char *error)
+{
+//	if(idx <= MAX_ERROR_LEN) {
+		GetError(idx, error);
+//		strncpy(error, msgTable[idx - 1]);
+//	} else {
+//		strcpy(error, "UNKNOWN");
+//	}
+}
+
+void ssl_GetSnifferSessionStats(unsigned long *active, unsigned long *expired, unsigned long *total, unsigned long *peak, unsigned long *allocd, unsigned long *freed){
+	*active = num_session_in_cache;
+	*expired = num_session_expired;
+	*total = SessionCount;
+	*peak = max_sessions;
+	*allocd = 0;
+	*freed = 0;
+}
+
+void ssl_ReleaseSession(const byte* packet, int length, unsigned short vlan)
+{
+	int err = 0;
+    TcpInfo           tcpInfo;
+    IpInfo            ipInfo;
+    const byte*       sslFrame;
+    SnifferSession*   session = NULL;
+    char error[MAX_ERROR_LEN];
+    int sslBytes;
+    ipInfo.vlan = vlan;
+
+    if (CheckHeaders(&ipInfo, &tcpInfo, packet, length, &sslFrame, &sslBytes,
+                     error, &err) != 0)
+        return;
+    CheckSession(&ipInfo, &tcpInfo, sslBytes, &session, error, &err);
+    if(session)
+    	RemoveSession(session, &ipInfo, &tcpInfo, 0);
+}
+
+static SnifferServer* ssl_GetSnifferServer(unsigned long addr, unsigned short port)
+{
+    SnifferServer* sniffer;
+#ifdef SNIFFER_LOCK_SERVER_LIST
+    wc_LockMutex(&ServerListMutex);
+#endif
+    sniffer = ServerList;
+    while (sniffer) {
+        if (sniffer->server == addr && sniffer->port == (int)port) {
+#ifdef SNIFFER_LOCK_SERVER_LIST
+            wc_UnLockMutex(&ServerListMutex);
+#endif
+            return sniffer;
+        }
+        sniffer = sniffer->next;
+	}
+#ifdef SNIFFER_LOCK_SERVER_LIST
+    wc_UnLockMutex(&ServerListMutex);
+#endif
+    return NULL;
+}
+
+int ssl_IsServerRegistered(unsigned long addr, unsigned short port)
+{
+	return ssl_GetSnifferServer(addr, port) != NULL;
+}
+
+#ifdef HAVE_SNI
+
+int ssl_IsNamedServerRegistered(char *sni, unsigned long addr, unsigned short port)
+{
+	SnifferServer *sniffer = ssl_GetSnifferServer(addr, port);
+	if(sniffer){
+        NamedKey *named = sniffer->namedKeys;
+#ifdef SNIFFER_LOCK_SERVER_LIST		
+        wc_LockMutex(&sniffer->namedKeysMutex);
+#endif
+        while (named) {
+        	if(!strncasecmp(sni, named->name, named->nameSz)){
+#ifdef SNIFFER_LOCK_SERVER_LIST
+        		wc_UnLockMutex(&sniffer->namedKeysMutex);
+#endif
+        		return 1;
+        	}
+        	named = named->next;
+        }
+#ifdef SNIFFER_LOCK_SERVER_LIST
+        wc_UnLockMutex(&sniffer->namedKeysMutex);
+#endif
+	}
+	return 0;
+}
+
+#endif
 
 /* Deallocator for the decoded data buffer. */
 /* returns 0 on success, -1 on error */
