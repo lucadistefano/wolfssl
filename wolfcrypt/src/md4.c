@@ -1,6 +1,6 @@
 /* md4.c
  *
- * Copyright (C) 2006-2017 wolfSSL Inc.
+ * Copyright (C) 2006-2020 wolfSSL Inc.
  *
  * This file is part of wolfSSL.
  *
@@ -130,7 +130,7 @@ static void Transform(Md4* md4)
 }
 
 
-static INLINE void AddLength(Md4* md4, word32 len)
+static WC_INLINE void AddLength(Md4* md4, word32 len)
 {
     word32 tmp = md4->loLen;
     if ( (md4->loLen += len) < tmp)

@@ -1,6 +1,6 @@
 /* wolfcaam_sha.h
  *
- * Copyright (C) 2006-2017 wolfSSL Inc.
+ * Copyright (C) 2006-2020 wolfSSL Inc.
  *
  * This file is part of wolfSSL.
  *
@@ -27,6 +27,8 @@
 #ifdef WOLFSSL_IMX6_CAAM
 
 #include <wolfssl/wolfcrypt/types.h>
+
+#define WOLFSSL_NO_HASH_RAW
 
 #ifndef WC_CAAM_CTXLEN
 /* last 8 bytes of context is for length */

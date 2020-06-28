@@ -1,6 +1,6 @@
 /* integer.h
  *
- * Copyright (C) 2006-2017 wolfSSL Inc.
+ * Copyright (C) 2006-2020 wolfSSL Inc.
  *
  * This file is part of wolfSSL.
  *
@@ -47,28 +47,16 @@
 
 #include <wolfssl/wolfcrypt/mpi_class.h>
 
-/* wolf big int and common functions */
-#include <wolfssl/wolfcrypt/wolfmath.h>
-
-
-#ifdef WOLFSSL_PUBLIC_MP
-    #define MP_API   WOLFSSL_API
-#else
-    #define MP_API
-#endif
-
-#ifndef MIN
-   #define MIN(x,y) ((x)<(y)?(x):(y))
-#endif
-
-#ifndef MAX
-   #define MAX(x,y) ((x)>(y)?(x):(y))
-#endif
 
 #ifdef __cplusplus
 extern "C" {
 
 /* C++ compilers don't like assigning void * to mp_digit * */
+#define  OPT_CAST(x)  (x *)
+
+#elif defined(_SH3)
+
+/* SuperH SH3 compiler doesn't like assigning voi* to mp_digit* */
 #define  OPT_CAST(x)  (x *)
 
 #else
@@ -80,7 +68,7 @@ extern "C" {
 
 
 /* detect 64-bit mode if possible */
-#if defined(__x86_64__)
+#if defined(__x86_64__) && !(defined (_MSC_VER) && defined(__clang__))
    #if !(defined(MP_64BIT) && defined(MP_16BIT) && defined(MP_8BIT))
       #define MP_64BIT
    #endif
@@ -103,20 +91,28 @@ extern "C" {
  * [any size beyond that is ok provided it doesn't overflow the data type]
  */
 #ifdef MP_8BIT
+   /* 8-bit */
    typedef unsigned char      mp_digit;
    typedef unsigned short     mp_word;
-#elif defined(MP_16BIT) || defined(NO_64BIT)
+   /* don't define DIGIT_BIT, so its calculated below */
+#elif defined(MP_16BIT)
+   /* 16-bit */
+   typedef unsigned int       mp_digit;
+   typedef unsigned long      mp_word;
+   /* don't define DIGIT_BIT, so its calculated below */
+#elif defined(NO_64BIT)
+   /* 32-bit forced to 16-bit */
    typedef unsigned short     mp_digit;
    typedef unsigned int       mp_word;
    #define DIGIT_BIT          12
 #elif defined(MP_64BIT)
+   /* 64-bit */
    /* for GCC only on supported platforms */
    typedef unsigned long long mp_digit;  /* 64 bit type, 128 uses mode(TI) */
    typedef unsigned long      mp_word __attribute__ ((mode(TI)));
-
    #define DIGIT_BIT          60
 #else
-   /* this is the default case, 28-bit digits */
+   /* 32-bit default case */
 
    #if defined(_MSC_VER) || defined(__BORLANDC__)
       typedef unsigned __int64   ulong64;
@@ -127,14 +123,14 @@ extern "C" {
    typedef unsigned int       mp_digit;  /* long could be 64 now, changed TAO */
    typedef ulong64            mp_word;
 
-#ifdef MP_31BIT
-   /* this is an extension that uses 31-bit digits */
-   #define DIGIT_BIT          31
-#else
-   /* default case is 28-bit digits, defines MP_28BIT as a handy test macro */
-   #define DIGIT_BIT          28
-   #define MP_28BIT
-#endif
+   #ifdef MP_31BIT
+      /* this is an extension that uses 31-bit digits */
+      #define DIGIT_BIT          31
+   #else
+      /* default case is 28-bit digits, defines MP_28BIT as a handy test macro */
+      #define DIGIT_BIT          28
+      #define MP_28BIT
+   #endif
 #endif
 
 #endif /* WOLFSSL_BIGINT_TYPES */
@@ -188,10 +184,16 @@ typedef int           mp_err;
 
 /* size of comba arrays, should be at least 2 * 2**(BITS_PER_WORD -
    BITS_PER_DIGIT*2) */
-#define MP_WARRAY  (1 << (sizeof(mp_word) * CHAR_BIT - 2 * DIGIT_BIT + 1))
+#define MP_WARRAY  ((mp_word)1 << (sizeof(mp_word) * CHAR_BIT - 2 * DIGIT_BIT + 1))
 
 #ifdef HAVE_WOLF_BIGINT
-    struct WC_BIGINT;
+    /* raw big integer */
+    typedef struct WC_BIGINT {
+        byte*   buf;
+        word32  len;
+        void*   heap;
+    } WC_BIGINT;
+    #define WOLF_BIGINT_DEFINED
 #endif
 
 /* the mp_int structure */
@@ -203,7 +205,10 @@ typedef struct mp_int {
     struct WC_BIGINT raw; /* unsigned binary (big endian) */
 #endif
 } mp_int;
-#define MP_INT_DEFINED
+
+/* wolf big int and common functions */
+#include <wolfssl/wolfcrypt/wolfmath.h>
+
 
 /* callback for mp_prime_random, should fill dst with random bytes and return
    how many read [up to len] */
@@ -224,6 +229,9 @@ typedef int ltm_prime_callback(unsigned char *dst, int len, void *dat);
 #define mp_isodd(a) \
     (((a)->used > 0 && (((a)->dp[0] & 1u) == 1u)) ? MP_YES : MP_NO)
 #define mp_isneg(a)  (((a)->sign != MP_ZPOS) ? MP_YES : MP_NO)
+#define mp_isword(a, w) \
+    ((((a)->used == 1) && ((a)->dp[0] == w)) || ((w == 0) && ((a)->used == 0)) \
+                                                               ? MP_YES : MP_NO)
 
 /* number of primes */
 #ifdef MP_8BIT
@@ -277,7 +285,10 @@ MP_API int  mp_unsigned_bin_size(mp_int * a);
 MP_API int  mp_read_unsigned_bin (mp_int * a, const unsigned char *b, int c);
 MP_API int  mp_to_unsigned_bin_at_pos(int x, mp_int *t, unsigned char *b);
 MP_API int  mp_to_unsigned_bin (mp_int * a, unsigned char *b);
+MP_API int  mp_to_unsigned_bin_len(mp_int * a, unsigned char *b, int c);
 MP_API int  mp_exptmod (mp_int * G, mp_int * X, mp_int * P, mp_int * Y);
+MP_API int  mp_exptmod_ex (mp_int * G, mp_int * X, int digits, mp_int * P,
+                           mp_int * Y);
 /* end functions needed by Rsa */
 
 /* functions added to support above needed, removed TOOM and KARATSUBA */
@@ -316,6 +327,8 @@ MP_API int  mp_reduce_is_2k(mp_int *a);
 MP_API int  mp_dr_is_modulus(mp_int *a);
 MP_API int  mp_exptmod_fast (mp_int * G, mp_int * X, mp_int * P, mp_int * Y,
                              int);
+MP_API int  mp_exptmod_base_2 (mp_int * X, mp_int * P, mp_int * Y);
+#define mp_exptmod_nct(G,X,P,Y)    mp_exptmod_fast(G,X,P,Y,0)
 MP_API int  mp_montgomery_setup (mp_int * n, mp_digit * rho);
 int  fast_mp_montgomery_reduce (mp_int * x, mp_int * n, mp_digit rho);
 MP_API int  mp_montgomery_reduce (mp_int * x, mp_int * n, mp_digit rho);
@@ -363,15 +376,19 @@ MP_API int mp_radix_size (mp_int * a, int radix, int *size);
     #define mp_dump(desc, a, verbose)
 #endif
 
-#if defined(HAVE_ECC) || defined(WOLFSSL_KEY_GEN)
+#if defined(HAVE_ECC) || defined(WOLFSSL_KEY_GEN) || !defined(NO_RSA) || \
+    !defined(NO_DSA) || !defined(NO_DH)
     MP_API int mp_sqrmod(mp_int* a, mp_int* b, mp_int* c);
 #endif
 #if !defined(NO_DSA) || defined(HAVE_ECC)
     MP_API int mp_read_radix(mp_int* a, const char* str, int radix);
 #endif
 
-#ifdef WOLFSSL_KEY_GEN
+#if defined(WOLFSSL_KEY_GEN) || !defined(NO_RSA) || !defined(NO_DSA) || !defined(NO_DH)
     MP_API int mp_prime_is_prime (mp_int * a, int t, int *result);
+    MP_API int mp_prime_is_prime_ex (mp_int * a, int t, int *result, WC_RNG*);
+#endif /* WOLFSSL_KEY_GEN NO_RSA NO_DSA NO_DH */
+#ifdef WOLFSSL_KEY_GEN
     MP_API int mp_gcd (mp_int * a, mp_int * b, mp_int * c);
     MP_API int mp_lcm (mp_int * a, mp_int * b, mp_int * c);
     MP_API int mp_rand_prime(mp_int* N, int len, WC_RNG* rng, void* heap);
@@ -379,10 +396,6 @@ MP_API int mp_radix_size (mp_int * a, int radix, int *size);
 
 MP_API int mp_cnt_lsb(mp_int *a);
 MP_API int mp_mod_d(mp_int* a, mp_digit b, mp_digit* c);
-
-
-/* wolf big int and common functions */
-#include <wolfssl/wolfcrypt/wolfmath.h>
 
 
 #ifdef __cplusplus

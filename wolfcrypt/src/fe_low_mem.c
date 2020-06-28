@@ -1,6 +1,6 @@
 /* fe_low_mem.c
  *
- * Copyright (C) 2006-2017 wolfSSL Inc.
+ * Copyright (C) 2006-2020 wolfSSL Inc.
  *
  * This file is part of wolfSSL.
  *
@@ -55,8 +55,12 @@ void lm_copy(byte* x, const byte* a)
         x[i] = a[i];
 }
 
-#ifndef FREESCALE_LTC_ECC
-void fe_init()
+#if ((defined(HAVE_CURVE25519) && !defined(CURVE25519_SMALL)) || \
+    (defined(HAVE_ED25519) && !defined(ED25519_SMALL))) &&      \
+    !defined(FREESCALE_LTC_ECC)
+    /* to be Complementary to fe_low_mem.c */
+#else
+void fe_init(void)
 {
 }
 #endif

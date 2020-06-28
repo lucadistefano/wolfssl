@@ -8,12 +8,12 @@
 
 /* Begin PBXBuildFile section */
 		A44566701BC59CA50053D0CB /* libwolfssl_osx.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A445666F1BC59CA50053D0CB /* libwolfssl_osx.a */; };
-		A45EA6DF1BC5922C00A8614A /* client.c in Sources */ = {isa = PBXBuildFile; fileRef = A45EA69D1BC5922C00A8614A /* client.c */; settings = {ASSET_TAGS = (); }; };
-		A45EA6E31BC5922C00A8614A /* echoclient.c in Sources */ = {isa = PBXBuildFile; fileRef = A45EA6B01BC5922C00A8614A /* echoclient.c */; settings = {ASSET_TAGS = (); }; };
-		A45EA6E61BC5922C00A8614A /* echoserver.c in Sources */ = {isa = PBXBuildFile; fileRef = A45EA6C31BC5922C00A8614A /* echoserver.c */; settings = {ASSET_TAGS = (); }; };
-		A45EA6E91BC5922C00A8614A /* server.c in Sources */ = {isa = PBXBuildFile; fileRef = A45EA6D71BC5922C00A8614A /* server.c */; settings = {ASSET_TAGS = (); }; };
-		A45EA6FD1BC5929500A8614A /* test.c in Sources */ = {isa = PBXBuildFile; fileRef = A45EA6F61BC5929500A8614A /* test.c */; settings = {ASSET_TAGS = (); }; };
-		A4C7CBF51BC58BD600E591AE /* testsuite.c in Sources */ = {isa = PBXBuildFile; fileRef = A4C7CBF41BC58BD600E591AE /* testsuite.c */; settings = {ASSET_TAGS = (); }; };
+		A45EA6DF1BC5922C00A8614A /* client.c in Sources */ = {isa = PBXBuildFile; fileRef = A45EA69D1BC5922C00A8614A /* client.c */; };
+		A45EA6E31BC5922C00A8614A /* echoclient.c in Sources */ = {isa = PBXBuildFile; fileRef = A45EA6B01BC5922C00A8614A /* echoclient.c */; };
+		A45EA6E61BC5922C00A8614A /* echoserver.c in Sources */ = {isa = PBXBuildFile; fileRef = A45EA6C31BC5922C00A8614A /* echoserver.c */; };
+		A45EA6E91BC5922C00A8614A /* server.c in Sources */ = {isa = PBXBuildFile; fileRef = A45EA6D71BC5922C00A8614A /* server.c */; };
+		A45EA6FD1BC5929500A8614A /* test.c in Sources */ = {isa = PBXBuildFile; fileRef = A45EA6F61BC5929500A8614A /* test.c */; };
+		A4C7CBF51BC58BD600E591AE /* testsuite.c in Sources */ = {isa = PBXBuildFile; fileRef = A4C7CBF41BC58BD600E591AE /* testsuite.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -164,7 +164,7 @@
 		A4F318F01BC58B8100FDF2BB /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastUpgradeCheck = 0700;
+				LastUpgradeCheck = 1010;
 				ORGANIZATIONNAME = WolfSSL;
 				TargetAttributes = {
 					A4F318F71BC58B8100FDF2BB = {
@@ -214,13 +214,23 @@
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
 				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
 				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
 				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
 				CLANG_WARN_EMPTY_BODY = YES;
 				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
 				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
@@ -255,13 +265,23 @@
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
 				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
 				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
 				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
 				CLANG_WARN_EMPTY_BODY = YES;
 				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
 				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
@@ -298,6 +318,7 @@
 					"$(PROJECT_DIR)/Build/Products",
 				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SYMROOT = $PROJECT_DIR/Build/Debug;
 			};
 			name = Debug;
 		};
@@ -317,6 +338,7 @@
 					"$(PROJECT_DIR)/Build/Products",
 				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SYMROOT = $PROJECT_DIR/Build/Release;
 			};
 			name = Release;
 		};

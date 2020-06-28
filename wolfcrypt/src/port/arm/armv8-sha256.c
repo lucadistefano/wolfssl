@@ -1,6 +1,6 @@
 /* armv8-sha256.c
  *
- * Copyright (C) 2006-2017 wolfSSL Inc.
+ * Copyright (C) 2006-2020 wolfSSL Inc.
  *
  * This file is part of wolfSSL.
  *
@@ -82,7 +82,7 @@ static int InitSha256(wc_Sha256* sha256)
     return ret;
 }
 
-static INLINE void AddLength(wc_Sha256* sha256, word32 len)
+static WC_INLINE void AddLength(wc_Sha256* sha256, word32 len)
 {
     word32 tmp = sha256->loLen;
     if ((sha256->loLen += len) < tmp)
@@ -92,8 +92,8 @@ static INLINE void AddLength(wc_Sha256* sha256, word32 len)
 
 #ifdef __aarch64__
 
-/* ARMv8 hardware accleration */
-static INLINE int Sha256Update(wc_Sha256* sha256, const byte* data, word32 len)
+/* ARMv8 hardware acceleration */
+static WC_INLINE int Sha256Update(wc_Sha256* sha256, const byte* data, word32 len)
 {
     word32 add;
     word32 numBlocks;
@@ -135,7 +135,7 @@ static INLINE int Sha256Update(wc_Sha256* sha256, const byte* data, word32 len)
             "LD1 {v24.4s-v27.4s}, [%[k]], #64    \n"
             "LD1 {v28.4s-v31.4s}, [%[k]], #64    \n"
 
-            /* begining of SHA256 block operation */
+            /* beginning of SHA256 block operation */
             "1:\n"
             /* Round 1 */
             "MOV v4.16b, v0.16b        \n"
@@ -266,7 +266,7 @@ static INLINE int Sha256Update(wc_Sha256* sha256, const byte* data, word32 len)
             "#check if more blocks should be done\n"
             "CBZ w8, 2f \n"
 
-            "#load in message and schedual updates \n"
+            "#load in message and schedule updates \n"
             "LD1 {v0.2d-v3.2d}, [%[dataIn]], #64   \n"
             "MOV v14.16b, v12.16b \n"
             "MOV v15.16b, v13.16b \n"
@@ -298,7 +298,7 @@ static INLINE int Sha256Update(wc_Sha256* sha256, const byte* data, word32 len)
         }
     }
 
-    /* account for possiblity of not used if len = 0 */
+    /* account for possibility of not used if len = 0 */
     (void)add;
     (void)numBlocks;
 
@@ -306,7 +306,7 @@ static INLINE int Sha256Update(wc_Sha256* sha256, const byte* data, word32 len)
 }
 
 
-static INLINE int Sha256Final(wc_Sha256* sha256, byte* hash)
+static WC_INLINE int Sha256Final(wc_Sha256* sha256, byte* hash)
 {
     byte* local;
 
@@ -498,7 +498,7 @@ static INLINE int Sha256Final(wc_Sha256* sha256, byte* hash)
             sizeof(word32));
 
     __asm__ volatile (
-        "#load in message and schedual updates \n"
+        "#load in message and schedule updates \n"
         "LD1 {v4.2d-v7.2d}, %[buffer]        \n"
         "MOV v0.16b, v4.16b \n"
         "MOV v1.16b, v5.16b \n"
@@ -654,8 +654,8 @@ static INLINE int Sha256Final(wc_Sha256* sha256, byte* hash)
 
 #else /* not using 64 bit */
 
-/* ARMv8 hardware accleration Aarch32 */
-static INLINE int Sha256Update(wc_Sha256* sha256, const byte* data, word32 len)
+/* ARMv8 hardware acceleration Aarch32 */
+static WC_INLINE int Sha256Update(wc_Sha256* sha256, const byte* data, word32 len)
 {
     word32 add;
     word32 numBlocks;
@@ -694,7 +694,7 @@ static INLINE int Sha256Update(wc_Sha256* sha256, const byte* data, word32 len)
             "VMOV.32 q14, q12 \n" /* store digest for add at the end */
             "VMOV.32 q15, q13 \n"
 
-            /* begining of SHA256 block operation */
+            /* beginning of SHA256 block operation */
             "1:\n"
 
             /* Round 1 */
@@ -838,7 +838,7 @@ static INLINE int Sha256Update(wc_Sha256* sha256, const byte* data, word32 len)
             "CMP r8, #0 \n"
             "BEQ 2f \n"
 
-            "#load in message and schedual updates \n"
+            "#load in message and schedule updates \n"
             "VLD1.32 {q0}, [%[dataIn]]!   \n"
             "VLD1.32 {q1}, [%[dataIn]]!   \n"
             "VLD1.32 {q2}, [%[dataIn]]!   \n"
@@ -874,7 +874,7 @@ static INLINE int Sha256Update(wc_Sha256* sha256, const byte* data, word32 len)
         }
     }
 
-    /* account for possiblity of not used if len = 0 */
+    /* account for possibility of not used if len = 0 */
     (void)add;
     (void)numBlocks;
 
@@ -882,7 +882,7 @@ static INLINE int Sha256Update(wc_Sha256* sha256, const byte* data, word32 len)
 }
 
 
-static INLINE int Sha256Final(wc_Sha256* sha256, byte* hash)
+static WC_INLINE int Sha256Final(wc_Sha256* sha256, byte* hash)
 {
     byte* local;
 
@@ -916,7 +916,7 @@ static INLINE int Sha256Final(wc_Sha256* sha256, byte* hash)
         "VMOV.32 q14, q12 \n" /* store digest for add at the end */
         "VMOV.32 q15, q13 \n"
 
-        /* begining of SHA256 block operation */
+        /* beginning of SHA256 block operation */
         /* Round 1 */
         "VLD1.32 {q5}, [%[k]]!    \n"
         "VMOV.32 q4, q0           \n"
@@ -1079,8 +1079,9 @@ static INLINE int Sha256Final(wc_Sha256* sha256, byte* hash)
     sha256->loLen = sha256->loLen << 3;
 
     /* store lengths */
-	word32* bufPt = sha256->buffer;
     #if defined(LITTLE_ENDIAN_ORDER)
+    {
+	word32* bufPt = sha256->buffer;
         __asm__ volatile (
             "VLD1.32 {q0}, [%[in]] \n"
             "VREV32.8 q0, q0 \n"
@@ -1098,6 +1099,7 @@ static INLINE int Sha256Final(wc_Sha256* sha256, byte* hash)
             : [in] "0" (bufPt)
             : "cc", "memory", "q0", "q1", "q2", "q3"
         );
+    }
     #endif
     /* ! length ordering dependent on digest endian type ! */
     XMEMCPY(&local[WC_SHA256_PAD_SIZE], &sha256->hiLen, sizeof(word32));
@@ -1116,7 +1118,7 @@ static INLINE int Sha256Final(wc_Sha256* sha256, byte* hash)
         "VMOV.32 q14, q12 \n" /* store digest for add at the end */
         "VMOV.32 q15, q13 \n"
 
-        /* begining of SHA256 block operation */
+        /* beginning of SHA256 block operation */
         /* Round 1 */
         "VLD1.32 {q5}, [%[k]]!    \n"
         "VMOV.32 q4, q0           \n"
@@ -1345,6 +1347,23 @@ int wc_Sha256GetHash(wc_Sha256* sha256, byte* hash)
     return ret;
 }
 
+#if defined(WOLFSSL_HASH_FLAGS) || defined(WOLF_CRYPTO_CB)
+int wc_Sha256SetFlags(wc_Sha256* sha256, word32 flags)
+{
+    if (sha256) {
+        sha256->flags = flags;
+    }
+    return 0;
+}
+int wc_Sha256GetFlags(wc_Sha256* sha256, word32* flags)
+{
+    if (sha256 && flags) {
+        *flags = sha256->flags;
+    }
+    return 0;
+}
+#endif
+
 int wc_Sha256Copy(wc_Sha256* src, wc_Sha256* dst)
 {
     int ret = 0;
@@ -1453,6 +1472,24 @@ int wc_Sha256Copy(wc_Sha256* src, wc_Sha256* dst)
         }
         return ret;
     }
+
+#if defined(WOLFSSL_HASH_FLAGS) || defined(WOLF_CRYPTO_CB)
+    int wc_Sha224SetFlags(wc_Sha224* sha224, word32 flags)
+    {
+        if (sha224) {
+            sha224->flags = flags;
+        }
+        return 0;
+    }
+    int wc_Sha224GetFlags(wc_Sha224* sha224, word32* flags)
+    {
+        if (sha224 && flags) {
+            *flags = sha224->flags;
+        }
+        return 0;
+    }
+#endif
+
     int wc_Sha224Copy(wc_Sha224* src, wc_Sha224* dst)
     {
         int ret = 0;

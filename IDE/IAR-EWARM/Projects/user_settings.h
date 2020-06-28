@@ -7,13 +7,15 @@
 #define USE_CERT_BUFFERS_2048
 #define WOLFSSL_USER_CURRTIME
 #define SIZEOF_LONG_LONG 8
-#define NO_WOLFSSL_DIR 
+#define NO_WOLFSSL_DIR
 #define WOLFSSL_NO_CURRDIR
+#define NO_WOLF_C99
+#define NO_MULTIBYTE_PRINT
 
 #define XVALIDATEDATE(d, f,t) (0)
 #define WOLFSSL_USER_CURRTIME /* for benchmark */
 
-#define WOLFSSL_GENSEED_FORTEST /* Wardning: define your own seed gen */
+#define WOLFSSL_GENSEED_FORTEST /* Warning: define your own seed gen */
 
 #define TFM_TIMING_RESISTANT
 #define ECC_TIMING_RESISTANT

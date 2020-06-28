@@ -1,6 +1,6 @@
 /* des3.h
  *
- * Copyright (C) 2006-2017 wolfSSL Inc.
+ * Copyright (C) 2006-2020 wolfSSL Inc.
  *
  * This file is part of wolfSSL.
  *
@@ -30,7 +30,13 @@
 
 #ifndef NO_DES3
 
-#ifdef HAVE_FIPS
+#if defined(HAVE_FIPS) && \
+    defined(HAVE_FIPS_VERSION) && (HAVE_FIPS_VERSION >= 2)
+    #include <wolfssl/wolfcrypt/fips.h>
+#endif /* HAVE_FIPS_VERSION >= 2 */
+
+#if defined(HAVE_FIPS) && \
+	(!defined(HAVE_FIPS_VERSION) || (HAVE_FIPS_VERSION < 2))
 /* included for fips @wc_fips */
 #include <cyassl/ctaocrypt/des3.h>
 #endif
@@ -43,11 +49,13 @@
 enum {
     DES_KEY_SIZE        =  8,  /* des                     */
     DES3_KEY_SIZE       = 24,  /* 3 des ede               */
-    DES_IV_SIZE         = 16,
+    DES_IV_SIZE         =  8,  /* should be the same as DES_BLOCK_SIZE */
 };
 
 
-#ifndef HAVE_FIPS /* to avoid redefinition of macros */
+/* avoid redefinition of structs */
+#if !defined(HAVE_FIPS) || \
+    (defined(HAVE_FIPS_VERSION) && (HAVE_FIPS_VERSION >= 2))
 
 #ifdef WOLFSSL_ASYNC_CRYPT
     #include <wolfssl/wolfcrypt/async.h>
@@ -87,17 +95,28 @@ typedef struct Des {
 
 
 /* DES3 encryption and decryption */
-typedef struct Des3 {
+struct Des3 {
     word32 key[3][DES_KS_SIZE];
     word32 reg[DES_BLOCK_SIZE / sizeof(word32)];      /* for CBC mode */
     word32 tmp[DES_BLOCK_SIZE / sizeof(word32)];      /* same         */
 #ifdef WOLFSSL_ASYNC_CRYPT
-    const byte* key_raw;
-    const byte* iv_raw;
     WC_ASYNC_DEV asyncDev;
 #endif
+#if defined(WOLF_CRYPTO_CB) || \
+    (defined(WOLFSSL_ASYNC_CRYPT) && defined(WC_ASYNC_ENABLE_3DES))
+    word32 devKey[DES3_KEYLEN/sizeof(word32)]; /* raw key */
+#endif
+#ifdef WOLF_CRYPTO_CB
+    int    devId;
+    void*  devCtx;
+#endif
     void* heap;
-} Des3;
+};
+
+#ifndef WC_DES3_TYPE_DEFINED
+    typedef struct Des3 Des3;
+    #define WC_DES3_TYPE_DEFINED
+#endif
 #endif /* HAVE_FIPS */
 
 

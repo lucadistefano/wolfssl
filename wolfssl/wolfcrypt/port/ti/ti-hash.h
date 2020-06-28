@@ -1,6 +1,6 @@
 /* port/ti/ti-hash.h
  *
- * Copyright (C) 2006-2017 wolfSSL Inc.
+ * Copyright (C) 2006-2020 wolfSSL Inc.
  *
  * This file is part of wolfSSL.
  *
@@ -32,6 +32,8 @@
 #ifndef WOLFSSL_MAX_HASH_SIZE
     #define WOLFSSL_MAX_HASH_SIZE  64
 #endif
+
+#define WOLFSSL_NO_HASH_RAW
 
 typedef struct {
     byte   *msg;

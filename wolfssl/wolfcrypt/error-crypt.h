@@ -1,6 +1,6 @@
 /* error-crypt.h
  *
- * Copyright (C) 2006-2017 wolfSSL Inc.
+ * Copyright (C) 2006-2020 wolfSSL Inc.
  *
  * This file is part of wolfSSL.
  *
@@ -28,9 +28,10 @@
 
 #include <wolfssl/wolfcrypt/types.h>
 
-#ifdef HAVE_FIPS
+#if defined(HAVE_FIPS) && \
+    (!defined(HAVE_FIPS_VERSION) || (HAVE_FIPS_VERSION < 2))
 	#include <cyassl/ctaocrypt/error-crypt.h>
-#endif /* HAVE_FIPS */
+#endif /* HAVE_FIPS V1 */
 
 #ifdef __cplusplus
     extern "C" {
@@ -198,15 +199,38 @@ enum {
     WC_HW_E             = -248,  /* Error with hardware crypto use */
     WC_HW_WAIT_E        = -249,  /* Hardware waiting on resource */
 
-    PSS_SALTLEN_E       = -250,  /* PSS length of salt is to long for hash */
+    PSS_SALTLEN_E       = -250,  /* PSS length of salt is too long for hash */
     PRIME_GEN_E         = -251,  /* Failure finding a prime. */
     BER_INDEF_E         = -252,  /* Cannot decode indefinite length BER. */
     RSA_OUT_OF_RANGE_E  = -253,  /* Ciphertext to decrypt out of range. */
     RSAPSS_PAT_FIPS_E   = -254,  /* RSA-PSS PAT failure */
     ECDSA_PAT_FIPS_E    = -255,  /* ECDSA PAT failure */
     DH_KAT_FIPS_E       = -256,  /* DH KAT failure */
+    AESCCM_KAT_FIPS_E   = -257,  /* AESCCM KAT failure */
+    SHA3_KAT_FIPS_E     = -258,  /* SHA-3 KAT failure */
+    ECDHE_KAT_FIPS_E    = -259,  /* ECDHE KAT failure */
+    AES_GCM_OVERFLOW_E  = -260,  /* AES-GCM invocation counter overflow. */
+    AES_CCM_OVERFLOW_E  = -261,  /* AES-CCM invocation counter overflow. */
+    RSA_KEY_PAIR_E      = -262,  /* RSA Key Pair-Wise Consistency check fail. */
+    DH_CHECK_PRIV_E     = -263,  /* DH Check Priv Key error */
 
-    WC_LAST_E           = -256,  /* Update this to indicate last error */
+    WC_AFALG_SOCK_E     = -264,  /* AF_ALG socket error */
+    WC_DEVCRYPTO_E      = -265,  /* /dev/crypto error */
+
+    ZLIB_INIT_ERROR     = -266,   /* zlib init error  */
+    ZLIB_COMPRESS_ERROR = -267,   /* zlib compression error  */
+    ZLIB_DECOMPRESS_ERROR = -268,  /* zlib decompression error  */
+
+    PKCS7_NO_SIGNER_E   = -269,  /* No signer in PKCS#7 signed data msg */
+    WC_PKCS7_WANT_READ_E= -270,  /* PKCS7 operations wants more input */
+
+    CRYPTOCB_UNAVAILABLE= -271,  /* Crypto callback unavailable */
+    PKCS7_SIGNEEDS_CHECK= -272,  /* signature needs verified by caller */
+    PSS_SALTLEN_RECOVER_E=-273,  /* PSS slat length not recoverable */
+
+    ASN_SELF_SIGNED_E   = -274, /* ASN self-signed certificate error */
+
+    WC_LAST_E           = -274,  /* Update this to indicate last error */
     MIN_CODE_E          = -300   /* errors -101 - -299 */
 
     /* add new companion error id strings for any new error codes

@@ -39,10 +39,30 @@ CLEANFILES+= cert.der \
              othercert.der \
              othercert.pem \
              pkcs7cert.der \
+             pkcs7authEnvelopedDataAES128GCM.der \
+             pkcs7authEnvelopedDataAES128GCM_ECDH_SHA1KDF.der \
+             pkcs7authEnvelopedDataAES128GCM_KEKRI.der \
+             pkcs7authEnvelopedDataAES128GCM_ORI.der \
+             pkcs7authEnvelopedDataAES128GCM_PWRI.der \
+             pkcs7authEnvelopedDataAES192GCM.der \
+             pkcs7authEnvelopedDataAES256GCM.der \
+             pkcs7authEnvelopedDataAES256GCM_ECDH_SHA256KDF.der \
+             pkcs7authEnvelopedDataAES256GCM_ECDH_SHA256KDF_authAttribs.der \
+             pkcs7authEnvelopedDataAES256GCM_ECDH_SHA256KDF_bothAttribs.der \
+             pkcs7authEnvelopedDataAES256GCM_ECDH_SHA256KDF_fw_bothAttribs.der \
+             pkcs7authEnvelopedDataAES256GCM_ECDH_SHA256KDF_unauthAttribs.der \
+             pkcs7authEnvelopedDataAES256GCM_ECDH_SHA512KDF.der \
+             pkcs7authEnvelopedDataAES256GCM_ECDH_SHA512KDF_ukm.der \
+             pkcs7authEnvelopedDataAES256GCM_firmwarePkgData.der \
+             pkcs7authEnvelopedDataAES256GCM_IANDS.der \
+             pkcs7authEnvelopedDataAES256GCM_SKID.der \
+             pkcs7compressedData_data_zlib.der \
+             pkcs7compressedData_firmwarePkgData_zlib.der \
              pkcs7encryptedDataAES128CBC.der \
              pkcs7encryptedDataAES192CBC.der \
              pkcs7encryptedDataAES256CBC_attribs.der \
              pkcs7encryptedDataAES256CBC.der \
+             pkcs7encryptedDataAES256CBC_firmwarePkgData.der \
              pkcs7encryptedDataAES256CBC_multi_attribs.der \
              pkcs7encryptedDataDES3.der \
              pkcs7encryptedDataDES.der \
@@ -53,20 +73,52 @@ CLEANFILES+= cert.der \
              pkcs7envelopedDataAES256CBC_ECDH_SHA512KDF_ukm.der \
              pkcs7envelopedDataDES3.der \
              pkcs7envelopedDataAES128CBC.der \
+             pkcs7envelopedDataAES128CBC_KEKRI.der \
+             pkcs7envelopedDataAES128CBC_PWRI.der \
+             pkcs7envelopedDataAES128CBC_ORI.der \
              pkcs7envelopedDataAES192CBC.der \
              pkcs7envelopedDataAES256CBC.der \
+             pkcs7envelopedDataAES256CBC_IANDS.der \
+             pkcs7envelopedDataAES256CBC_SKID.der \
              pkcs7signedData_RSA_SHA.der \
              pkcs7signedData_RSA_SHA_noattr.der \
              pkcs7signedData_RSA_SHA224.der \
              pkcs7signedData_RSA_SHA256.der \
+             pkcs7signedData_RSA_SHA256_firmwarePkgData.der \
+             pkcs7signedData_RSA_SHA256_custom_contentType.der \
+             pkcs7signedData_RSA_SHA256_with_ca_cert.der \
+             pkcs7signedData_RSA_SHA256_SKID.der \
+             pkcs7signedData_RSA_SHA256_detachedSig.der \
              pkcs7signedData_RSA_SHA384.der \
              pkcs7signedData_RSA_SHA512.der \
              pkcs7signedData_ECDSA_SHA.der \
              pkcs7signedData_ECDSA_SHA_noattr.der \
              pkcs7signedData_ECDSA_SHA224.der \
              pkcs7signedData_ECDSA_SHA256.der \
+             pkcs7signedData_ECDSA_SHA256_firmwarePkgData.der \
+             pkcs7signedData_ECDSA_SHA256_custom_contentType.der \
+             pkcs7signedData_ECDSA_SHA256_SKID.der \
              pkcs7signedData_ECDSA_SHA384.der \
-             pkcs7signedData_ECDSA_SHA512.der
+             pkcs7signedData_ECDSA_SHA512.der \
+             pkcs7signedFirmwarePkgData_ECDSA_SHA256.der \
+             pkcs7signedFirmwarePkgData_ECDSA_SHA256_SKID.der \
+             pkcs7signedFirmwarePkgData_ECDSA_SHA256_noattr.der \
+             pkcs7signedFirmwarePkgData_RSA_SHA256.der \
+             pkcs7signedFirmwarePkgData_RSA_SHA256_SKID.der \
+             pkcs7signedFirmwarePkgData_RSA_SHA256_noattr.der \
+             pkcs7signedFirmwarePkgData_RSA_SHA256_with_ca_cert.der \
+             pkcs7signedCompressedFirmwarePkgData_ECDSA_SHA256.der \
+             pkcs7signedCompressedFirmwarePkgData_ECDSA_SHA256_noattr.der \
+             pkcs7signedCompressedFirmwarePkgData_RSA_SHA256.der \
+             pkcs7signedCompressedFirmwarePkgData_RSA_SHA256_noattr.der \
+             pkcs7signedEncryptedFirmwarePkgData_RSA_SHA256.der \
+             pkcs7signedEncryptedFirmwarePkgData_RSA_SHA256_noattr.der \
+             pkcs7signedEncryptedFirmwarePkgData_ECDSA_SHA256.der \
+             pkcs7signedEncryptedFirmwarePkgData_ECDSA_SHA256_noattr.der \
+             pkcs7signedEncryptedCompressedFirmwarePkgData_ECDSA_SHA256.der \
+             pkcs7signedEncryptedCompressedFirmwarePkgData_ECDSA_SHA256_noattr.der \
+             pkcs7signedEncryptedCompressedFirmwarePkgData_RSA_SHA256.der \
+             pkcs7signedEncryptedCompressedFirmwarePkgData_RSA_SHA256_noattr.der
 
 exampledir = $(docdir)/example
 dist_example_DATA=
@@ -82,22 +134,22 @@ EXTRA_DIST+= wolfssl-ntru.sln
 EXTRA_DIST+= wolfssl.sln
 EXTRA_DIST+= wolfssl64.sln
 EXTRA_DIST+= valgrind-error.sh
+EXTRA_DIST+= fips-hash.sh
 EXTRA_DIST+= gencertbuf.pl
 EXTRA_DIST+= README.md
+EXTRA_DIST+= README
+EXTRA_DIST+= ChangeLog.md
 EXTRA_DIST+= LICENSING
 EXTRA_DIST+= INSTALL
 EXTRA_DIST+= IPP
-EXTRA_DIST+= .cproject
-EXTRA_DIST+= .project
+EXTRA_DIST+= LPCExpresso.cproject
+EXTRA_DIST+= LPCExpresso.project
+EXTRA_DIST+= resource.h wolfssl.rc
 
 include wrapper/include.am
 include cyassl/include.am
 include wolfssl/include.am
 include certs/include.am
-include certs/1024/include.am
-include certs/crl/include.am
-include certs/external/include.am
-include certs/ocsp/include.am
 include doc/include.am
 include swig/include.am
 
@@ -207,7 +259,4 @@ merge-clean:
 	@find ./ | $(GREP) \.OTHER | xargs rm -f
 	@find ./ | $(GREP) \.BASE | xargs rm -f
 	@find ./ | $(GREP) \~$$ | xargs rm -f
-
-dist-hook:
-	cp $(distdir)/wolfssl/options.h.in $(distdir)/wolfssl/options.h
 

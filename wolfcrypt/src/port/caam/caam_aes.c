@@ -1,6 +1,6 @@
 /* caam_aes.c
  *
- * Copyright (C) 2006-2017 wolfSSL Inc.
+ * Copyright (C) 2006-2020 wolfSSL Inc.
  *
  * This file is part of wolfSSL.
  *
@@ -299,7 +299,7 @@ int wc_AesEcbDecrypt(Aes* aes, byte* out,
 /* AES-CTR */
 #ifdef WOLFSSL_AES_COUNTER
 /* Increment AES counter (from wolfcrypt/src/aes.c) */
-static INLINE void IncrementAesCounter(byte* inOutCtr)
+static WC_INLINE void IncrementAesCounter(byte* inOutCtr)
 {
     /* in network byte order so start at end and work back */
     int i;
@@ -497,6 +497,10 @@ int  wc_AesCcmEncrypt(Aes* aes, byte* out,
         authTagSz > AES_BLOCK_SIZE)
         return BAD_FUNC_ARG;
 
+    if (wc_AesCcmCheckTagSize(authTagSz) != 0) {
+        return BAD_FUNC_ARG;
+    }
+
     if (wc_AesGetKeySize(aes, &keySz) != 0) {
          return BAD_FUNC_ARG;
     }
@@ -575,6 +579,10 @@ int  wc_AesCcmDecrypt(Aes* aes, byte* out,
             || authTag == NULL || nonceSz < 7 || nonceSz > 13 ||
         authTagSz > AES_BLOCK_SIZE)
         return BAD_FUNC_ARG;
+
+    if (wc_AesCcmCheckTagSize(authTagSz) != 0) {
+        return BAD_FUNC_ARG;
+    }
 
     if (wc_AesGetKeySize(aes, &keySz) != 0) {
          return BAD_FUNC_ARG;

@@ -24,7 +24,7 @@ These Xcode projects define the `WOLFSSL_USER_SETTINGS` preprocessor
 to enable the `user_settings.h` file for setting macros across 
 multiple projects.
 
-If needed the Xcode preprocessors can be modifed with these steps:
+If needed the Xcode preprocessors can be modified with these steps:
 1. Click on the Project in "Project Navigator".
 2. Click on the "Build Settings" tab.
 3. Scroll down to the "Apple LLVM 6.0 - Preprocessing" section.
@@ -54,6 +54,15 @@ device build. Both are debug builds.
 
 You can make an archive for a device, as well. That is a release build.
 
+## Known issues:
+
+When building for older i386 architectures and using tfm.c there are specific
+CFLAGS required to expose the necessary registers for inline assembly in tfm.c.
+An example script has been provided "build-for-i386.sh" that targets the watchos
+by default. If using SDK iphonesimulator10.1 or older you can change the SDK
+variable in that script however newer versions of the SDK no longer support
+i386 for the iphones.
+
 # Installing libwolfssl.a
 
 Simply drag the file libwolfssl_XXX_.a and the directory `include` and drop it into
@@ -64,7 +73,7 @@ to the list of libraries to link against.
 Click on your project target, then the "Build Phases" tab. On the targets list
 click your target. Click the disclosure triangle on the section "Link Binary
 With Libraries" and verify libwolfssl.a is in the list. If not, click the "+",
-and on the "Choose framworks and libraries to add:" dialog, click the
+and on the "Choose frameworks and libraries to add:" dialog, click the
 button "Add other..." then find the file libwolfssl.a.
 
 Click on the "Build Settings" tab. Scroll down to the section "Search Paths".

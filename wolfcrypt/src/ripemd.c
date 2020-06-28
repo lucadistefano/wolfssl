@@ -1,6 +1,6 @@
 /* ripemd.c
  *
- * Copyright (C) 2006-2017 wolfSSL Inc.
+ * Copyright (C) 2006-2020 wolfSSL Inc.
  *
  * This file is part of wolfSSL.
  *
@@ -271,7 +271,7 @@ static void Transform(RipeMd* ripemd)
 }
 
 
-static INLINE void AddLength(RipeMd* ripemd, word32 len)
+static WC_INLINE void AddLength(RipeMd* ripemd, word32 len)
 {
     word32 tmp = ripemd->loLen;
     if ( (ripemd->loLen += len) < tmp)

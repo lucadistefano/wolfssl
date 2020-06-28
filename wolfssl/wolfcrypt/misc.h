@@ -1,6 +1,6 @@
 /* misc.h
  *
- * Copyright (C) 2006-2017 wolfSSL Inc.
+ * Copyright (C) 2006-2020 wolfSSL Inc.
  *
  * This file is part of wolfSSL.
  *
@@ -90,6 +90,21 @@ void ato16(const byte* c, word16* u16);
 void ato24(const byte* c, word32* u24);
 void ato32(const byte* c, word32* u32);
 word32 btoi(byte b);
+
+
+WOLFSSL_LOCAL byte ctMaskGT(int a, int b);
+WOLFSSL_LOCAL byte ctMaskGTE(int a, int b);
+WOLFSSL_LOCAL int  ctMaskIntGTE(int a, int b);
+WOLFSSL_LOCAL byte ctMaskLT(int a, int b);
+WOLFSSL_LOCAL byte ctMaskLTE(int a, int b);
+WOLFSSL_LOCAL byte ctMaskEq(int a, int b);
+WOLFSSL_LOCAL word16 ctMask16GT(int a, int b);
+WOLFSSL_LOCAL word16 ctMask16LT(int a, int b);
+WOLFSSL_LOCAL word16 ctMask16Eq(int a, int b);
+WOLFSSL_LOCAL byte ctMaskNotEq(int a, int b);
+WOLFSSL_LOCAL byte ctMaskSel(byte m, byte a, byte b);
+WOLFSSL_LOCAL int  ctMaskSelInt(byte m, int a, int b);
+WOLFSSL_LOCAL byte ctSetLTE(int a, int b);
 
 #endif /* NO_INLINE */
 

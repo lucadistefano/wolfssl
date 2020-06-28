@@ -1,6 +1,6 @@
 /* wolfevent.h
  *
- * Copyright (C) 2006-2017 wolfSSL Inc.
+ * Copyright (C) 2006-2020 wolfSSL Inc.
  *
  * This file is part of wolfSSL.
  *
@@ -30,16 +30,7 @@
     #include <wolfssl/wolfcrypt/wc_port.h>
 #endif
 
-#ifndef WOLFSSL_WOLFSSL_TYPE_DEFINED
-#define WOLFSSL_WOLFSSL_TYPE_DEFINED
-typedef struct WOLFSSL WOLFSSL;
-#endif
 typedef struct WOLF_EVENT WOLF_EVENT;
-#ifndef WOLFSSL_WOLFSSL_CTX_TYPE_DEFINED
-#define WOLFSSL_WOLFSSL_CTX_TYPE_DEFINED
-typedef struct WOLFSSL_CTX WOLFSSL_CTX;
-#endif
-
 typedef unsigned short WOLF_EVENT_FLAG;
 
 typedef enum WOLF_EVENT_TYPE {

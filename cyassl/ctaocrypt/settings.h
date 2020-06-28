@@ -1,6 +1,6 @@
 /* settings.h
  *
- * Copyright (C) 2006-2017 wolfSSL Inc.
+ * Copyright (C) 2006-2020 wolfSSL Inc.
  *
  * This file is part of wolfSSL.
  *
@@ -150,16 +150,20 @@
     #define TFM_TIMING_RESISTANT
 #endif
 
-#ifdef CYASSL_MICROCHIP_PIC32MZ
-    #define CYASSL_PIC32MZ_CE
-    #define CYASSL_PIC32MZ_CRYPT
-    #define HAVE_AES_ENGINE
-    #define CYASSL_PIC32MZ_RNG
-    /* #define CYASSL_PIC32MZ_HASH */
+#if defined(CYASSL_MICROCHIP_PIC32MZ) || defined(WOLFSSL_MICROCHIP_PIC32MZ)
+    #ifndef NO_PIC32MZ_CRYPT
+        #define WOLFSSL_PIC32MZ_CRYPT
+    #endif
+    #ifndef NO_PIC32MZ_RNG
+        #define WOLFSSL_PIC32MZ_RNG
+    #endif
+    #ifndef NO_PIC32MZ_HASH
+        #define WOLFSSL_PIC32MZ_HASH
+    #endif
+
     #define CYASSL_AES_COUNTER
     #define HAVE_AESGCM
     #define NO_BIG_INT
-
 #endif
 
 #ifdef MICROCHIP_TCPIP_V5
@@ -180,7 +184,7 @@
 #ifdef MBED
     #define CYASSL_USER_IO
     #define NO_FILESYSTEM
-    #define NO_CERT
+    #define NO_CERTS
     #define USE_CERT_BUFFERS_1024
     #define NO_WRITEV
     #define NO_DEV_RANDOM
@@ -700,12 +704,6 @@
     #else
         #define CYASSL_GENERAL_ALIGNMENT  0
     #endif
-#endif
-
-#ifdef HAVE_CRL
-    /* not widely supported yet */
-    #undef NO_SKID
-    #define NO_SKID
 #endif
 
 

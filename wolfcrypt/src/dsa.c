@@ -1,6 +1,6 @@
 /* dsa.c
  *
- * Copyright (C) 2006-2017 wolfSSL Inc.
+ * Copyright (C) 2006-2020 wolfSSL Inc.
  *
  * This file is part of wolfSSL.
  *
@@ -41,14 +41,6 @@
     #define WOLFSSL_MISC_INCLUDED
     #include <wolfcrypt/src/misc.c>
 #endif
-
-
-enum {
-    DSA_HALF_SIZE = 20,   /* r and s size  */
-    DSA_SIG_SIZE  = 40    /* signature size */
-};
-
-
 
 int wc_InitDsaKey(DsaKey* key)
 {
@@ -209,7 +201,7 @@ int wc_MakeDsaKey(WC_RNG *rng, DsaKey *dsa)
 
     /* public key : y = g^x mod p */
     if (err == MP_OKAY)
-        err = mp_exptmod(&dsa->g, &dsa->x, &dsa->p, &dsa->y);
+        err = mp_exptmod_ex(&dsa->g, &dsa->x, dsa->q.used, &dsa->p, &dsa->y);
 
     if (err == MP_OKAY)
         dsa->type = DSA_PRIVATE;
@@ -249,7 +241,6 @@ int wc_MakeDsaParameters(WC_RNG *rng, int modulus_size, DsaKey *dsa)
             break;
         default:
             return BAD_FUNC_ARG;
-            break;
     }
 
     /* modulus size in bytes */
@@ -262,7 +253,7 @@ int wc_MakeDsaParameters(WC_RNG *rng, int modulus_size, DsaKey *dsa)
         return MEMORY_E;
     }
 
-    /* make a random string that will be multplied against q */
+    /* make a random string that will be multiplied against q */
     err = wc_RNG_GenerateBlock(rng, buf, msize - qsize);
     if (err != MP_OKAY) {
         XFREE(buf, dsa->heap, DYNAMIC_TYPE_TMP_BUFFER);
@@ -337,7 +328,7 @@ int wc_MakeDsaParameters(WC_RNG *rng, int modulus_size, DsaKey *dsa)
 
     /* loop until p is prime */
     while (check_prime == MP_NO) {
-        err = mp_prime_is_prime(&dsa->p, 8, &check_prime);
+        err = mp_prime_is_prime_ex(&dsa->p, 8, &check_prime, rng);
         if (err != MP_OKAY) {
             mp_clear(&dsa->q);
             mp_clear(&dsa->p);
@@ -426,21 +417,8 @@ int wc_MakeDsaParameters(WC_RNG *rng, int modulus_size, DsaKey *dsa)
 #endif /* WOLFSSL_KEY_GEN */
 
 
-/* Import raw DSA parameters into DsaKey structure for use with wc_MakeDsaKey(),
- * input parameters (p,q,g) should be represented as ASCII hex values.
- *
- * dsa  - pointer to initialized DsaKey structure
- * p    - DSA (p) parameter, ASCII hex string
- * pSz  - length of p
- * q    - DSA (q) parameter, ASCII hex string
- * qSz  - length of q
- * g    - DSA (g) parameter, ASCII hex string
- * gSz  - length of g
- *
- * returns 0 on success, negative upon failure
- */
-int wc_DsaImportParamsRaw(DsaKey* dsa, const char* p, const char* q,
-                          const char* g)
+static int _DsaImportParamsRaw(DsaKey* dsa, const char* p, const char* q,
+                          const char* g, int trusted, WC_RNG* rng)
 {
     int err;
     word32 pSz, qSz;
@@ -450,6 +428,18 @@ int wc_DsaImportParamsRaw(DsaKey* dsa, const char* p, const char* q,
 
     /* read p */
     err = mp_read_radix(&dsa->p, p, MP_RADIX_HEX);
+    if (err == MP_OKAY && !trusted) {
+        int isPrime = 1;
+        if (rng == NULL)
+            err = mp_prime_is_prime(&dsa->p, 8, &isPrime);
+        else
+            err = mp_prime_is_prime_ex(&dsa->p, 8, &isPrime, rng);
+
+        if (err == MP_OKAY) {
+            if (!isPrime)
+                err = DH_CHECK_PUB_E;
+        }
+    }
 
     /* read q */
     if (err == MP_OKAY)
@@ -475,6 +465,49 @@ int wc_DsaImportParamsRaw(DsaKey* dsa, const char* p, const char* q,
     }
 
     return err;
+}
+
+
+/* Import raw DSA parameters into DsaKey structure for use with wc_MakeDsaKey(),
+ * input parameters (p,q,g) should be represented as ASCII hex values.
+ *
+ * dsa  - pointer to initialized DsaKey structure
+ * p    - DSA (p) parameter, ASCII hex string
+ * pSz  - length of p
+ * q    - DSA (q) parameter, ASCII hex string
+ * qSz  - length of q
+ * g    - DSA (g) parameter, ASCII hex string
+ * gSz  - length of g
+ *
+ * returns 0 on success, negative upon failure
+ */
+int wc_DsaImportParamsRaw(DsaKey* dsa, const char* p, const char* q,
+                          const char* g)
+{
+    return _DsaImportParamsRaw(dsa, p, q, g, 1, NULL);
+}
+
+
+/* Import raw DSA parameters into DsaKey structure for use with wc_MakeDsaKey(),
+ * input parameters (p,q,g) should be represented as ASCII hex values. Check
+ * that the p value is probably prime.
+ *
+ * dsa  - pointer to initialized DsaKey structure
+ * p    - DSA (p) parameter, ASCII hex string
+ * pSz  - length of p
+ * q    - DSA (q) parameter, ASCII hex string
+ * qSz  - length of q
+ * g    - DSA (g) parameter, ASCII hex string
+ * gSz  - length of g
+ * trusted - trust that p is OK
+ * rng  - random number generator for the prime test
+ *
+ * returns 0 on success, negative upon failure
+ */
+int wc_DsaImportParamsRawCheck(DsaKey* dsa, const char* p, const char* q,
+                          const char* g, int trusted, WC_RNG* rng)
+{
+    return _DsaImportParamsRaw(dsa, p, q, g, trusted, rng);
 }
 
 
@@ -621,10 +654,14 @@ int wc_DsaExportKeyRaw(DsaKey* dsa, byte* x, word32* xSz, byte* y, word32* ySz)
 
 int wc_DsaSign(const byte* digest, byte* out, DsaKey* key, WC_RNG* rng)
 {
-    mp_int k, kInv, r, s, H;
-    int    ret, sz;
-    byte   buffer[DSA_HALF_SIZE];
-    byte*  tmp;  /* initial output pointer */
+    mp_int  k, kInv, r, s, H;
+#ifndef WOLFSSL_MP_INVMOD_CONSTANT_TIME
+    mp_int  b;
+#endif
+    mp_int* qMinus1;
+    int     ret = 0, sz;
+    byte    buffer[DSA_HALF_SIZE];
+    byte*   tmp;  /* initial output pointer */
 
     if (digest == NULL || out == NULL || key == NULL || rng == NULL) {
         return BAD_FUNC_ARG;
@@ -634,35 +671,54 @@ int wc_DsaSign(const byte* digest, byte* out, DsaKey* key, WC_RNG* rng)
 
     sz = min((int)sizeof(buffer), mp_unsigned_bin_size(&key->q));
 
+#ifdef WOLFSSL_MP_INVMOD_CONSTANT_TIME
     if (mp_init_multi(&k, &kInv, &r, &s, &H, 0) != MP_OKAY)
+#else
+    if (mp_init_multi(&k, &kInv, &r, &s, &H, &b) != MP_OKAY)
+#endif
+    {
         return MP_INIT_E;
+    }
+    qMinus1 = &kInv;
 
-    do {
-        /* generate k */
-        ret = wc_RNG_GenerateBlock(rng, buffer, sz);
-        if (ret != 0)
-            return ret;
+    /* NIST FIPS 186-4: B.2.2
+     * Per-Message Secret Number Generation by Testing Candidates
+     * Generate k in range [1, q-1].
+     *   Check that k is less than q-1: range [0, q-2].
+     *   Add 1 to k: range [1, q-1].
+     */
+    if (mp_sub_d(&key->q, 1, qMinus1))
+        ret = MP_SUB_E;
 
-        buffer[0] |= 0x0C;
+    if (ret == 0) {
+        do {
+            /* Step 4: generate k */
+            ret = wc_RNG_GenerateBlock(rng, buffer, sz);
 
-        if (mp_read_unsigned_bin(&k, buffer, sz) != MP_OKAY)
-            ret = MP_READ_E;
+            /* Step 5 */
+            if (ret == 0 && mp_read_unsigned_bin(&k, buffer, sz) != MP_OKAY)
+                ret = MP_READ_E;
 
-        /* k is a random numnber and it should be less than q
-         * if k greater than repeat
-         */
-    } while (mp_cmp(&k, &key->q) != MP_LT);
+            /* k is a random numnber and it should be less than q-1
+             * if k greater than repeat
+             */
+        /* Step 6 */
+        } while (ret == 0 && mp_cmp(&k, qMinus1) != MP_LT);
+    }
+    /* Step 7 */
+    if (ret == 0 && mp_add_d(&k, 1, &k) != MP_OKAY)
+        ret = MP_MOD_E;
 
-    if (ret == 0 && mp_cmp_d(&k, 1) != MP_GT)
-        ret = MP_CMP_E;
-
+#ifdef WOLFSSL_MP_INVMOD_CONSTANT_TIME
     /* inverse k mod q */
     if (ret == 0 && mp_invmod(&k, &key->q, &kInv) != MP_OKAY)
         ret = MP_INVMOD_E;
 
     /* generate r, r = (g exp k mod p) mod q */
-    if (ret == 0 && mp_exptmod(&key->g, &k, &key->p, &r) != MP_OKAY)
+    if (ret == 0 && mp_exptmod_ex(&key->g, &k, key->q.used, &key->p,
+                                                               &r) != MP_OKAY) {
         ret = MP_EXPTMOD_E;
+    }
 
     if (ret == 0 && mp_mod(&r, &key->q, &r) != MP_OKAY)
         ret = MP_MOD_E;
@@ -680,6 +736,72 @@ int wc_DsaSign(const byte* digest, byte* out, DsaKey* key, WC_RNG* rng)
 
     if (ret == 0 && mp_mulmod(&s, &kInv, &key->q, &s) != MP_OKAY)
         ret = MP_MULMOD_E;
+#else
+    /* Blinding value
+     * Generate b in range [1, q-1].
+     */
+    if (ret == 0) {
+        do {
+            ret = wc_RNG_GenerateBlock(rng, buffer, sz);
+            if (ret == 0 && mp_read_unsigned_bin(&b, buffer, sz) != MP_OKAY)
+                ret = MP_READ_E;
+        } while (ret == 0 && mp_cmp(&b, qMinus1) != MP_LT);
+    }
+    if (ret == 0 && mp_add_d(&b, 1, &b) != MP_OKAY)
+        ret = MP_MOD_E;
+
+    /* set H from sha digest */
+    if (ret == 0 && mp_read_unsigned_bin(&H, digest,
+                                               WC_SHA_DIGEST_SIZE) != MP_OKAY) {
+        ret = MP_READ_E;
+    }
+
+    /* generate r, r = (g exp k mod p) mod q */
+    if (ret == 0 && mp_exptmod_ex(&key->g, &k, key->q.used, &key->p,
+                                                               &r) != MP_OKAY) {
+        ret = MP_EXPTMOD_E;
+    }
+
+    /* calculate s = (H + xr)/k
+                   = b.(H/k.b + x.r/k.b) */
+
+    /* k = k.b */
+    if (ret == 0 && mp_mulmod(&k, &b, &key->q, &k) != MP_OKAY)
+        ret = MP_MULMOD_E;
+
+    /* kInv = 1/k.b mod q */
+    if (ret == 0 && mp_invmod(&k, &key->q, &kInv) != MP_OKAY)
+        ret = MP_INVMOD_E;
+
+    if (ret == 0 && mp_mod(&r, &key->q, &r) != MP_OKAY)
+        ret = MP_MOD_E;
+
+    /* s = x.r */
+    if (ret == 0 && mp_mul(&key->x, &r, &s) != MP_OKAY)
+        ret = MP_MUL_E;
+
+    /* s = x.r/k.b */
+    if (ret == 0 && mp_mulmod(&s, &kInv, &key->q, &s) != MP_OKAY)
+        ret = MP_MULMOD_E;
+
+    /* H = H/k.b */
+    if (ret == 0 && mp_mulmod(&H, &kInv, &key->q, &H) != MP_OKAY)
+        ret = MP_MULMOD_E;
+
+    /* s = H/k.b + x.r/k.b
+         = (H + x.r)/k.b */
+    if (ret == 0 && mp_add(&s, &H, &s) != MP_OKAY)
+        ret = MP_ADD_E;
+
+    /* s = b.(e + x.r)/k.b
+         = (e + x.r)/k */
+    if (ret == 0 && mp_mulmod(&s, &b, &key->q, &s) != MP_OKAY)
+        ret = MP_MULMOD_E;
+
+    /* s = (e + x.r)/k */
+    if (ret == 0 && mp_mod(&s, &key->q, &s) != MP_OKAY)
+        ret = MP_MOD_E;
+#endif
 
     /* detect zero r or s */
     if (ret == 0 && (mp_iszero(&r) == MP_YES || mp_iszero(&s) == MP_YES))
@@ -705,6 +827,14 @@ int wc_DsaSign(const byte* digest, byte* out, DsaKey* key, WC_RNG* rng)
         }
     }
 
+    ForceZero(buffer, sz);
+    mp_forcezero(&kInv);
+    mp_forcezero(&k);
+#ifndef WOLFSSL_MP_INVMOD_CONSTANT_TIME
+    mp_forcezero(&b);
+
+    mp_clear(&b);
+#endif
     mp_clear(&H);
     mp_clear(&s);
     mp_clear(&r);
